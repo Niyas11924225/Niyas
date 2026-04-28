@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RK Event Management - Catering Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 20px;
+  }
+  .chat-wrapper {
+    width: 100%;
+    max-width: 420px;
+    height: 92vh;
+    max-height: 820px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.8);
+    border: 1px solid #222;
+  }
+  .header {
+    background: linear-gradient(135deg, #1a6b3a 0%, #128C7E 100%);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .avatar-wrap { position: relative; }
+  .avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: #25D366;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; border: 2px solid rgba(255,255,255,0.3);
+  }
+  .online-dot {
+    position: absolute; bottom: 2px; right: 2px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #25D366; border: 2px solid #1a6b3a;
+  }
+  .header-info { flex: 1; }
+  .header-name { color: #fff; font-weight: 700; font-size: 15px; letter-spacing: 0.3px; }
+  .header-status { color: rgba(255,255,255,0.75); font-size: 12px; }
+  .header-icons { display: flex; gap: 8px; }
+  .header-icons span { color: #fff; cursor: pointer; padding: 4px 6px; border-radius: 6px; opacity: 0.85; font-size: 16px; }
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 10px;
+    background: #111b21;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .date-chip { text-align: center; margin: 8px 0; }
+  .date-chip span {
+    background: rgba(255,255,255,0.08); color: #aaa;
+    font-size: 11px; padding: 3px 12px; border-radius: 12px;
+  }
+  .msg-row { display: flex; animation: fadeIn 0.25s ease; }
+  .msg-row.bot { justify-content: flex-start; }
+  .msg-row.user { justify-content: flex-end; }
+  .bubble { max-width: 78%; padding: 8px 10px 6px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .bubble.bot { background: #202c33; border-radius: 0px 12px 12px 12px; color: #e9edef; }
+  .bubble.user { background: #005c4b; border-radius: 12px 0px 12px 12px; color: #d9fdd3; }
+  .bubble-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .bubble-meta { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; }
+  .bubble-time { font-size: 10px; }
+  .bubble.bot .bubble-time { color: #8696a0; }
+  .bubble.user .bubble-time { color: #8eaf9d; }
+  .ticks { color: #53bdeb; font-size: 12px; }
+  .typing-row { display: flex; justify-content: flex-start; margin-bottom: 4px; }
+  .typing-bubble {
+    background: #202c33; border-radius: 0px 12px 12px 12px;
+    padding: 10px 14px; display: flex; gap: 5px; align-items: center;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #8696a0; animation: bounce 1.2s ease-in-out infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  .input-bar {
+    background: #202c33; padding: 8px 10px;
+    display: flex; align-items: flex-end; gap: 8px; flex-shrink: 0;
+  }
+  .input-box {
+    flex: 1; background: #2a3942; border-radius: 24px;
+    display: flex; align-items: flex-end; padding: 6px 14px; gap: 8px;
+  }
+  .input-icon { font-size: 18px; color: #8696a0; margin-bottom: 2px; cursor: pointer; }
+  #msg-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: #e9edef; font-size: 14px; resize: none; line-height: 1.5;
+    max-height: 100px; overflow-y: auto; font-family: inherit; padding-top: 2px;
+  }
+  #msg-input::placeholder { color: #8696a0; }
+  #send-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+    transition: all 0.2s ease; flex-shrink: 0; background: #202c33; transform: scale(0.9);
+  }
+  #send-btn.active { background: linear-gradient(135deg, #25D366, #128C7E); transform: scale(1); }
+
+  .summary-card {
+    background: linear-gradient(135deg, #1a2f23, #1a3a2f);
+    border: 1px solid #25D366;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin: 4px 0;
+    max-width: 85%;
+    animation: fadeIn 0.3s ease;
+  }
+  .summary-card h4 { color: #25D366; font-size: 13px; margin-bottom: 8px; }
+  .summary-card .s-row { font-size: 12px; color: #b2cfb8; margin-bottom: 4px; line-height: 1.4; }
+  .summary-card .s-row span { color: #e9edef; font-weight: 600; }
+  .wa-btn {
+    margin-top: 10px;
+    background: #25D366;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  .wa-btn:hover { background: #1ebe5d; }
+  .wa-btn:disabled { background: #3b4a54; cursor: not-allowed; }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: #3b4a54; border-radius: 4px; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<div class="chat-wrapper">
+  <div class="header">
+    <div class="avatar-wrap">
+      <div class="avatar">🍽️</div>
+      <div class="online-dot"></div>
+    </div>
+    <div class="header-info">
+      <div class="header-name">RK Event Management</div>
+      <div class="header-status">🟢 Online · Catering Assistant</div>
+    </div>
+    <div class="header-icons"><span>📞</span><span>⋮</span></div>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="date-chip"><span>Today</span></div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-box">
+      <span class="input-icon">😊</span>
+      <textarea id="msg-input" rows="1" placeholder="Type a message"></textarea>
+      <span class="input-icon">📎</span>
+    </div>
+    <button id="send-btn">🎙️</button>
+  </div>
+</div>
+
+<script>
+const WA_NUMBER = '919363342018';
+
+const SYSTEM_PROMPT = `You are a friendly catering requirements assistant for "RK Event Management", a top event management company based in Thondi. You communicate in a mix of Tamil and English (Tanglish) just like a real WhatsApp conversation — casual, warm, and helpful.
+
+Your job is to collect all catering requirements from the customer through natural conversation. Collect these details step by step (don't ask everything at once):
+1. Customer name
+2. Type of event (wedding, birthday, corporate, reception, etc.)
+3. Event date
+4. Event location / venue (in or around Thondi area)
+5. Number of guests (approximate)
+6. Meal type (breakfast, lunch, dinner, or multiple)
+7. Veg / Non-veg / Both preference
+8. Cuisine preference (Chettinad, South Indian, North Indian, Chinese, Multi-cuisine, etc.)
+9. Special dietary requirements or allergies
+10. Budget range (per plate or total)
+11. Special requests (live counters, dessert table, welcome drinks, biryani counter, etc.)
+
+IMPORTANT: Once you have collected ALL 11 details, you MUST end your final message with this exact JSON block (nothing after it):
+<<<SUMMARY_JSON>>>
+{
+  "name": "...",
+  "event_type": "...",
+  "event_date": "...",
+  "venue": "...",
+  "guests": "...",
+  "meal_type": "...",
+  "food_pref": "...",
+  "cuisine": "...",
+  "dietary": "...",
+  "budget": "...",
+  "special_requests": "..."
+}
+<<<END_SUMMARY>>>
+
+Rules:
+- Be warm and conversational like WhatsApp chat
+- Use Tanglish naturally ("nalla", "seri", "enna", "romba", "super", "aama", "illa", etc.)
+- Ask one or two questions at a time
+- Use emojis naturally
+- Keep messages short like real WhatsApp texts`;
+
+const INITIAL_MSG = `Vanakkam! 🙏 Welcome to RK Event Management, Thondi! 🌊\n\nNaan ungalukku catering requirements gather panna help pannuven. Romba simple-a irukum, don't worry! 😊\n\nUngal peyar enna sollunga? 👤`;
+
+let history = [];
+let summaryData = null;
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('msg-input');
+const sendBtn = document.getElementById('send-btn');
+
+function formatTime(d) {
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+function addMessage(role, text) {
+  if (role === 'assistant' && text.includes('<<<SUMMARY_JSON>>>')) {
+    const cleanText = text.replace(/<<<SUMMARY_JSON>>>[\s\S]*<<<END_SUMMARY>>>/g, '').trim();
+    const jsonMatch = text.match(/<<<SUMMARY_JSON>>>([\s\S]*?)<<<END_SUMMARY>>>/);
+    if (jsonMatch) {
+      try {
+        summaryData = JSON.parse(jsonMatch[1].trim());
+      } catch(e) { console.error('JSON parse error', e); }
+    }
+    if (cleanText) renderBubble('bot', cleanText);
+    if (summaryData) renderSummaryCard(summaryData);
+    return;
+  }
+  renderBubble(role === 'assistant' ? 'bot' : 'user', text);
+}
+
+function renderBubble(side, text) {
+  const row = document.createElement('div');
+  row.className = `msg-row ${side}`;
+  const now = new Date();
+  row.innerHTML = `
+    <div class="bubble ${side}">
+      <div class="bubble-text">${escapeHtml(text)}</div>
+      <div class="bubble-meta">
+        <span class="bubble-time">${formatTime(now)}</span>
+        ${side === 'user' ? '<span class="ticks">✓✓</span>' : ''}
+      </div>
+    </div>`;
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function escapeHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderSummaryCard(data) {
+  const card = document.createElement('div');
+  card.className = 'msg-row bot';
+  const labels = {
+    name: '👤 Name', event_type: '🎉 Event', event_date: '📅 Date',
+    venue: '📍 Venue', guests: '👥 Guests', meal_type: '🍽️ Meal',
+    food_pref: '🥗 Food Pref', cuisine: '🍛 Cuisine',
+    dietary: '⚠️ Dietary', budget: '💰 Budget', special_requests: '✨ Special'
+  };
+  let rows = '';
+  for (const [k, v] of Object.entries(data)) {
+    rows += `<div class="s-row">${labels[k] || k}: <span>${escapeHtml(v)}</span></div>`;
+  }
+
+  const waMsg = encodeURIComponent(
+    `*RK Event Management - Catering Enquiry*\n\n` +
+    Object.entries(data).map(([k,v]) => `*${(labels[k]||k).replace(/[^a-zA-Z ]/g,'')}:* ${v}`).join('\n')
+  );
+
+  card.innerHTML = `
+    <div class="summary-card">
+      <h4>✅ Catering Requirements Summary</h4>
+      ${rows}
+      <button class="wa-btn" onclick="window.open('https://wa.me/${WA_NUMBER}?text=${waMsg}','_blank')">
+        📲 Send to RK via WhatsApp
+      </button>
+    </div>`;
+  messagesEl.appendChild(card);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function showTyping() {
+  const el = document.createElement('div');
+  el.className = 'typing-row';
+  el.id = 'typing';
+  el.innerHTML = `<div class="typing-bubble"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+  messagesEl.appendChild(el);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing');
+  if (el) el.remove();
+}
+
+async function sendMessage(userText) {
+  if (!userText.trim()) return;
+  history.push({ role: 'user', content: userText });
+  addMessage('user', userText);
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  updateSendBtn();
+
+  showTyping();
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: history
+      })
+    });
+    const data = await res.json();
+    hideTyping();
+    const reply = data.content?.map(b => b.text || '').join('') || 'Sorry, oru problem vandhuchu. Try again! 😅';
+    history.push({ role: 'assistant', content: reply });
+    addMessage('assistant', reply);
+  } catch(e) {
+    hideTyping();
+    addMessage('assistant', 'Network error aayiduchu 😅 Please try again!');
+  }
+}
+
+function updateSendBtn() {
+  sendBtn.textContent = inputEl.value.trim() ? '➤' : '🎙️';
+  sendBtn.classList.toggle('active', !!inputEl.value.trim());
+}
+
+sendBtn.addEventListener('click', () => {
+  if (inputEl.value.trim()) sendMessage(inputEl.value.trim());
+});
+
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (inputEl.value.trim()) sendMessage(inputEl.value.trim());
+  }
+});
+
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+  updateSendBtn();
+});
+
+// Boot
+async function init() {
+  showTyping();
+  await new Promise(r => setTimeout(r, 800));
+  hideTyping();
+  history.push({ role: 'assistant', content: INITIAL_MSG });
+  addMessage('assistant', INITIAL_MSG);
+}
+
+init();
+</script>
+</body>
+</html>
